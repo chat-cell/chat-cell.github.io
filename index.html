@@ -443,7 +443,7 @@
     let targetHoles = [];
     let gameState = 'IDLE'; 
 
-    const multiplierMap = { 2: 5, 4: 4, 6: 3, 8: 2, 10: 1 };
+    const multiplierMap = { 2: 6, 4: 5, 6: 4, 8: 3, 10: 10 };
     const multipliers = Object.keys(multiplierMap).map(Number);
     const totalHoles = 10;
     
@@ -462,9 +462,9 @@
     const holeWidth = playAreaWidth / totalHoles; // 35px
     
     // 物理参数
-    const ballRadius = 12;
+    const ballRadius = 10;
     const pegRadius = 5; 
-    const gravity = 0.15;
+    const gravity = 0.05;
     const wallBounciness = 0.4;
     
     let ball = { 
