@@ -58,10 +58,10 @@
         canvas {
             background: radial-gradient(circle at 40% 30%, #2b2b48 0%, #000000 100%);
             border: 5px solid #5a3e2b;
-            border-radius: 20px 20px 0 0; /* 上方圆角 */
+            border-radius: 20px 20px 0 0;
             box-shadow: inset 0 0 30px #000;
             cursor: pointer;
-            display: block; /* 防止底部空隙 */
+            display: block;
         }
 
         .lights-panel {
@@ -91,7 +91,7 @@
             border: 1px solid #fff;
         }
 
-        /* --- 底部洞口指示修正 (关键修改) --- */
+        /* --- 底部洞口指示 --- */
         .holes-container {
             width: 100%;
             display: flex;
@@ -103,27 +103,24 @@
 
         .holes-indicator {
             display: flex; 
-            /* 严格匹配 Canvas 游戏区宽度 */
             width: 350px; 
             margin: 0; padding: 0;
         }
         .hole-lamp {
-            /* 强制每个标号宽度为 35px (350/10) */
             width: 35px;
             box-sizing: border-box;
             text-align: center; 
             font-size: 12px; 
             color: #555;
             padding-top: 8px;
-            /* 去除边框以防止像素累积偏移 */
         }
         .hole-lamp.target {
             color: #ff3300; font-weight: bold; text-shadow: 0 0 8px red; background: rgba(255,0,0,0.1);
         }
         
         .pipe-base {
-            width: 50px; /* 对应管道宽度 */
-            background: #1a1a1a; /*稍微深一点区分 */
+            width: 50px;
+            background: #1a1a1a;
             border-left: 2px solid #444;
             box-sizing: border-box;
         }
@@ -267,9 +264,9 @@
         <canvas id="gameCanvas" width="400" height="500"></canvas>
         
         <div class="holes-container">
-             <div class="holes-indicator" id="hole-indicators">
-                 </div>
-             <div class="pipe-base"></div> </div>
+             <div class="holes-indicator" id="hole-indicators"></div>
+             <div class="pipe-base"></div>
+        </div>
 
         <div id="message">欢迎光临！请调整赌注后点击开始。</div>
 
@@ -443,11 +440,10 @@
     let targetHoles = [];
     let gameState = 'IDLE'; 
 
-    const multiplierMap = { 2: 6, 4: 5, 6: 4, 8: 3, 10: 10 };
+    const multiplierMap = { 2: 5, 4: 4, 6: 3, 8: 2, 10: 1 };
     const multipliers = Object.keys(multiplierMap).map(Number);
     const totalHoles = 10;
     
-    // Canvas
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const width = canvas.width;   
@@ -455,17 +451,16 @@
     
     // --- 管道与区域设置 ---
     const pipeWidth = 50;
-    const playAreaWidth = 350; // width (400) - pipeWidth (50)
+    const playAreaWidth = 350; // 游戏区宽度
     const pipeWallX = playAreaWidth; 
     const pipeCurvePivotY = 60; 
     
-    const holeWidth = playAreaWidth / totalHoles; // 35px
+    const holeWidth = playAreaWidth / totalHoles; 
     
     // 物理参数
-    const ballRadius = 10;
-    const pegRadius = 5; 
-    const gravity = 0.05;
-    const wallBounciness = 0.4;
+    const ballRadius = 12;
+    const gravity = 0.25;
+    const wallBounciness = 0.8;
     
     let ball = { 
         x: 0, y: 0, vx: 0, vy: 0, 
@@ -482,13 +477,54 @@
 
     function createPegs() {
         pegs = [];
-        const rows = 9; const startY = 120; const spacingX = 40; const spacingY = 35;
+        // 参考图：顶部大银球（Bumpers）
+        // 第一排大球
+        const topRow1Y = 90;
+        const topRow1Cols = 6;
+        const spacingLarge = 58; 
+        const marginLarge = (playAreaWidth - (topRow1Cols-1)*spacingLarge) / 2;
+        
+        for (let c=0; c<topRow1Cols; c++) {
+             pegs.push({
+                 x: marginLarge + c * spacingLarge,
+                 y: topRow1Y,
+                 radius: 12, // 大号
+                 type: 'large',
+                 flashVal: 0
+             });
+        }
+        
+        // 第二排大球
+        const topRow2Y = 130;
+        const topRow2Cols = 5;
+        const marginLarge2 = (playAreaWidth - (topRow2Cols-1)*spacingLarge) / 2;
+        for (let c=0; c<topRow2Cols; c++) {
+             pegs.push({
+                 x: marginLarge2 + c * spacingLarge,
+                 y: topRow2Y,
+                 radius: 12, // 大号
+                 type: 'large',
+                 flashVal: 0
+             });
+        }
+
+        // 下方密集小金球
+        const rows = 8; 
+        const startY = 180; 
+        const spacingX = 40; 
+        const spacingY = 35;
         for (let row = 0; row < rows; row++) {
             const rowIsEven = row % 2 === 0; const cols = rowIsEven ? 8 : 7; 
             const rowWidth = (cols - 1) * spacingX; const marginLeft = (playAreaWidth - rowWidth) / 2;
             for (let col = 0; col < cols; col++) {
                 let jitter = (Math.random() - 0.5) * 4; 
-                pegs.push({ x: marginLeft + col * spacingX + jitter, y: startY + row * spacingY, flashVal: 0 });
+                pegs.push({ 
+                    x: marginLeft + col * spacingX + jitter, 
+                    y: startY + row * spacingY, 
+                    radius: 5, // 小号
+                    type: 'normal',
+                    flashVal: 0 
+                });
             }
         }
     }
@@ -579,7 +615,7 @@
         gameState = 'LAUNCHING'; updateUI(); document.getElementById('power-bar').style.width = '0%'; setMessage("弹珠发射！");
     }
 
-    // --- 核心物理引擎 (分段处理) ---
+    // --- 核心物理引擎 ---
     function gameLoop() {
         ctx.clearRect(0, 0, width, height); drawBoard();
         if (ball.active) {
@@ -593,7 +629,7 @@
         requestAnimationFrame(gameLoop);
     }
 
-    // 1. 发射阶段物理
+    // 发射阶段
     function updateLaunchPhysics() {
         ball.vy += gravity; 
         ball.x += ball.vx; 
@@ -602,51 +638,46 @@
         const pipeInnerLeft = pipeWallX + 5;
         const pipeInnerRight = width - 5;
 
-        // A. 顶部弯管强制导向区
+        // 顶部弯管强制导向
         if (ball.y < pipeCurvePivotY) {
-            ball.vx -= 1.5; // 强力左推
-            
-            // 贴顶滑动，不反弹
+            ball.vx -= 1.5; 
             if (ball.y < ballRadius + 2) {
                 ball.y = ballRadius + 2;
                 ball.vy = 0; 
             }
-        } 
-        // B. 直管区域
-        else {
+        } else {
             if (ball.x < pipeInnerLeft + ballRadius) { ball.x = pipeInnerLeft + ballRadius; ball.vx *= -0.5; }
             if (ball.x > pipeInnerRight - ballRadius) { ball.x = pipeInnerRight - ballRadius; ball.vx *= -0.5; }
         }
 
-        // C. 状态切换：飞出管道
         if (ball.x < pipeWallX) {
             ball.inChannel = false;
             ball.vx += (Math.random() - 0.5);
         }
     }
 
-    // 2. 游戏阶段物理
+    // 游戏阶段
     function updatePlayPhysics() {
         ball.vy += gravity; 
         ball.x += ball.vx; 
         ball.y += ball.vy;
 
-        // 右侧实体墙
         if (ball.x > pipeWallX - ballRadius) {
             ball.x = pipeWallX - ballRadius;
             ball.vx *= -wallBounciness;
         }
 
-        // 左墙
         if (ball.x < ballRadius) { ball.x = ballRadius; ball.vx *= -wallBounciness; }
 
-        // 钉子碰撞
+        // 碰撞 (支持不同半径)
         pegs.forEach(peg => {
             const pdx = ball.x - peg.x; const pdy = ball.y - peg.y; 
             const pdist = Math.sqrt(pdx*pdx + pdy*pdy); 
-            if (pdist < ballRadius + pegRadius) {
+            const combinedRadius = ballRadius + peg.radius;
+            
+            if (pdist < combinedRadius) {
                 const nx = pdx/pdist; const ny = pdy/pdist;
-                ball.x += nx*(ballRadius + pegRadius - pdist); ball.y += ny*(ballRadius + pegRadius - pdist);
+                ball.x += nx*(combinedRadius - pdist); ball.y += ny*(combinedRadius - pdist);
                 const dot = ball.vx*nx + ball.vy*ny;
                 ball.vx = (ball.vx - 2*dot*nx)*0.6 + (Math.random()-0.5); 
                 ball.vy = (ball.vy - 2*dot*ny)*0.6;
@@ -655,46 +686,52 @@
             }
         });
 
-        // 底部进洞
         if (ball.y > height - ballRadius) finishRound();
     }
 
     function drawBoard() {
-        // 1. 边界
+        // 边界
         ctx.save(); ctx.strokeStyle = '#5a3e2b'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.moveTo(0, 20); ctx.quadraticCurveTo(0, 0, 20, 0); ctx.lineTo(width - 20, 0); ctx.quadraticCurveTo(width, 0, width, 20); ctx.lineTo(width, height); ctx.lineTo(0, height); ctx.closePath(); ctx.stroke(); ctx.restore();
 
-        // 2. 绘制实体管道 (Visuals - 精简版)
+        // 管道
         ctx.save();
-        // 管道右墙
         ctx.fillStyle = '#333'; ctx.fillRect(width - 5, pipeCurvePivotY, 5, height - pipeCurvePivotY);
-        // 管道左墙 (分隔墙)
         ctx.fillStyle = '#555'; ctx.fillRect(pipeWallX, pipeCurvePivotY, 5, height - pipeCurvePivotY);
-        
-        // 管道背景
         ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
         ctx.fillRect(pipeWallX, 0, pipeWidth, height);
         ctx.restore();
 
-        // 3. 钉子
+        // 钉子渲染 (区分金银)
         pegs.forEach(peg => {
             if (peg.flashVal > 0) peg.flashVal -= 0.1;
             const isHit = peg.flashVal > 0.5;
-            ctx.beginPath(); ctx.arc(peg.x, peg.y, pegRadius, 0, Math.PI*2);
-            const grad = ctx.createRadialGradient(peg.x - 2, peg.y - 2, 1, peg.x, peg.y, pegRadius);
-            if (isHit) { grad.addColorStop(0, '#ffaaaa'); grad.addColorStop(1, '#ff0000'); } 
-            else { grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.3, '#bbbbbb'); grad.addColorStop(1, '#666666'); }
+            ctx.beginPath(); ctx.arc(peg.x, peg.y, peg.radius, 0, Math.PI*2);
+            
+            const grad = ctx.createRadialGradient(peg.x - 2, peg.y - 2, 1, peg.x, peg.y, peg.radius);
+            
+            if (isHit) { 
+                grad.addColorStop(0, '#ffaaaa'); grad.addColorStop(1, '#ff0000'); 
+            } else { 
+                if (peg.type === 'large') {
+                    // 大号：银色
+                    grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.3, '#d0d0d0'); grad.addColorStop(1, '#888888'); 
+                } else {
+                    // 小号：金色 (参考图)
+                    grad.addColorStop(0, '#ffeb3b'); grad.addColorStop(0.3, '#fbc02d'); grad.addColorStop(1, '#f57f17'); 
+                }
+            }
             ctx.fillStyle = grad; ctx.fill();
         });
 
-        // 4. 洞口线
+        // 洞口线
         ctx.strokeStyle = '#884400'; ctx.lineWidth = 2;
         for (let i = 1; i <= totalHoles; i++) {
             const x = i * holeWidth;
             if (x <= pipeWallX) { ctx.beginPath(); ctx.moveTo(x, height-50); ctx.lineTo(x, height); ctx.stroke(); }
         }
         
-        // 5. 目标
+        // 目标
         ctx.fillStyle = 'rgba(255, 50, 0, 0.2)';
         targetHoles.forEach(h => { ctx.fillRect(h * holeWidth + 1, height - 50, holeWidth - 2, 50); });
     }
