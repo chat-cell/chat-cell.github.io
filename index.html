@@ -1,49 +1,756 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>chat-cell</title>
+    <title>黄力的弹珠碰碰乐</title>
+    <style>
+        /* --- 基础样式 --- */
+        body {
+            background-color: #1a1a1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+            min-height: 100vh;
+        }
 
-    <link href="./webui/css/bootstrap.min.css" rel="stylesheet">
+        h1 { margin-bottom: 10px; text-shadow: 0 0 10px #ff00de; color: #ff00de; font-style: italic; }
+
+        /* --- 游戏机主体 --- */
+        #game-cabinet {
+            background: #2a2a2a;
+            border: 10px solid #444;
+            border-radius: 30px;
+            padding: 20px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 440px;
+            position: relative;
+        }
+
+        /* --- 顶部状态栏 --- */
+        .display-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 5px;
+            width: 100%;
+            margin-bottom: 15px;
+            background: #000;
+            padding: 10px;
+            border-radius: 12px;
+            border: 2px solid #666;
+            box-sizing: border-box;
+        }
+        .stat-box { text-align: center; }
+        .stat-label { font-size: 11px; color: #aaa; margin-bottom: 2px; }
+        .stat-value { font-size: 16px; font-weight: bold; font-family: 'Courier New', monospace; }
+        .stat-value.highlight { color: #ffcc00; }
+        .stat-value.points { color: #00ccff; }
+
+        /* --- 画布与灯光 --- */
+        canvas {
+            background: radial-gradient(circle at 40% 30%, #2b2b48 0%, #000000 100%);
+            border: 5px solid #5a3e2b;
+            border-radius: 20px 20px 0 0; /* 上方圆角 */
+            box-shadow: inset 0 0 30px #000;
+            cursor: pointer;
+            display: block; /* 防止底部空隙 */
+        }
+
+        .lights-panel {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 10px;
+            padding: 5px;
+            background: #111;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .lamp {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            background: #333;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold; color: #555;
+            box-shadow: inset 0 0 5px #000;
+            transition: all 0.1s;
+        }
+        .lamp.active {
+            background: #ff3300;
+            box-shadow: 0 0 15px #ff3300;
+            color: white; transform: scale(1.1);
+            border: 1px solid #fff;
+        }
+
+        /* --- 底部洞口指示修正 (关键修改) --- */
+        .holes-container {
+            width: 100%;
+            display: flex;
+            background: #111;
+            border-radius: 0 0 10px 10px;
+            border-top: 2px solid #884400;
+            box-sizing: border-box;
+        }
+
+        .holes-indicator {
+            display: flex; 
+            /* 严格匹配 Canvas 游戏区宽度 */
+            width: 350px; 
+            margin: 0; padding: 0;
+        }
+        .hole-lamp {
+            /* 强制每个标号宽度为 35px (350/10) */
+            width: 35px;
+            box-sizing: border-box;
+            text-align: center; 
+            font-size: 12px; 
+            color: #555;
+            padding-top: 8px;
+            /* 去除边框以防止像素累积偏移 */
+        }
+        .hole-lamp.target {
+            color: #ff3300; font-weight: bold; text-shadow: 0 0 8px red; background: rgba(255,0,0,0.1);
+        }
+        
+        .pipe-base {
+            width: 50px; /* 对应管道宽度 */
+            background: #1a1a1a; /*稍微深一点区分 */
+            border-left: 2px solid #444;
+            box-sizing: border-box;
+        }
+
+        /* --- 控制区域 --- */
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+        }
+        
+        .game-buttons {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 10px;
+        }
+
+        button {
+            padding: 12px; border: none; border-radius: 8px;
+            font-weight: bold; font-size: 14px; cursor: pointer;
+            transition: all 0.1s;
+        }
+        button:active { transform: scale(0.96); filter: brightness(0.9); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); }
+
+        .btn-bet { background: #ffc107; color: #222; }
+        .btn-start { background: #0d6efd; color: white; font-size: 16px; }
+        
+        .shop-area { margin-top: 15px; width: 100%; }
+        .btn-shop { 
+            background: linear-gradient(45deg, #6a11cb 0%, #2575fc 100%); 
+            color: white; width: 100%; font-size: 16px;
+            border: 1px solid #aaa;
+            box-shadow: 0 4px 15px rgba(37, 117, 252, 0.4);
+        }
+
+        .launch-area {
+            display: flex; flex-direction: column; align-items: center;
+            background: #222; padding: 10px; border-radius: 8px; border: 1px dashed #555;
+        }
+        #power-bar-container {
+            width: 100%; height: 15px; background: #444;
+            margin-bottom: 8px; border-radius: 10px; overflow: hidden;
+        }
+        #power-bar {
+            width: 0%; height: 100%;
+            background: linear-gradient(90deg, #0f0, #ff0, #f00);
+        }
+        #btn-launch {
+            background: #ff4500; color: white; width: 100%; font-size: 18px; letter-spacing: 2px;
+        }
+
+        #message {
+            margin-top: 10px; color: #ddd; height: 20px; font-size: 14px; text-align: center;
+        }
+
+        /* --- 神秘商店 Modal --- */
+        #shop-modal {
+            display: none;
+            position: fixed; z-index: 100; left: 0; top: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.85);
+            align-items: center; justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+        .shop-content {
+            background: #222;
+            border: 2px solid #00ccff;
+            border-radius: 15px; padding: 25px;
+            width: 600px; max-width: 95%;
+            max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 0 40px rgba(0, 204, 255, 0.3);
+            text-align: center;
+            position: relative;
+        }
+        .shop-close {
+            position: absolute; top: 10px; right: 15px;
+            font-size: 28px; cursor: pointer; color: #aaa;
+        }
+        .shop-close:hover { color: #fff; }
+        
+        .shop-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px; margin-top: 20px;
+        }
+        .shop-item {
+            background: rgba(255,255,255,0.05);
+            padding: 10px; border-radius: 12px;
+            border: 1px solid #444;
+            display: flex; flex-direction: column; align-items: center;
+            transition: transform 0.2s;
+        }
+        .shop-item:hover { border-color: #00ccff; transform: translateY(-3px); }
+        
+        .icon-box {
+            width: 60px; height: 60px;
+            margin-bottom: 8px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        
+        .shop-item-name { font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #fff; }
+        .shop-item-cost { color: #00ccff; font-size: 12px; margin-bottom: 8px; }
+        .btn-buy {
+            background: #00ccff; border: none;
+            color: #000; padding: 5px 12px; font-weight:bold; font-size: 12px; width: auto;
+            border-radius: 20px;
+        }
+        .btn-buy:hover { background: #fff; }
+
+    </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="#">Chat-Pcell</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false"
-                aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav">
-                <li class="nav-item">
-                    <a class="nav-link active" aria-current="page" href="#">Home</a>
-                </li>
-            </ul>
+    <h1>✨ 黄力的弹珠碰碰乐 ✨</h1>
+
+    <div id="game-cabinet">
+        <div class="display-panel">
+            <div class="stat-box">
+                <div class="stat-label">剩余弹珠</div>
+                <div class="stat-value" style="color:#0f0"><span id="bead-display">200</span></div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">当前赌注</div>
+                <div class="stat-value highlight"><span id="bet-display">5</span></div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">本局赢得</div>
+                <div class="stat-value highlight">+<span id="won-display">0</span></div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">我的积分</div>
+                <div class="stat-value points"><span id="points-display">0</span></div>
+            </div>
+        </div>
+
+        <div class="lights-panel" id="multiplier-lights"></div>
+
+        <canvas id="gameCanvas" width="400" height="500"></canvas>
+        
+        <div class="holes-container">
+             <div class="holes-indicator" id="hole-indicators">
+                 </div>
+             <div class="pipe-base"></div> </div>
+
+        <div id="message">欢迎光临！请调整赌注后点击开始。</div>
+
+        <div class="controls">
+            <div class="game-buttons">
+                <button class="btn-bet" id="btn-bet" onclick="increaseBet()">加注 (+5)</button>
+                <button class="btn-start" id="btn-start" onclick="startGame()">确定下注 / 开始</button>
+            </div>
+            
+            <div class="launch-area">
+                <div id="power-bar-container"><div id="power-bar"></div></div>
+                <button id="btn-launch" onmousedown="startCharge()" onmouseup="releaseBall()" onmouseleave="cancelCharge()" disabled>按住蓄力发射</button>
+            </div>
+
+            <div class="shop-area">
+                <button class="btn-shop" onclick="openShop()">🎁 黄力的神秘商店</button>
+            </div>
         </div>
     </div>
-</nav>
 
-<div class="container mt-4">
-    <h1>Chat-Pcell</h1>
-    <p>This is a project that uses a large language model(LLM) to assisted parameterized cell(Pcell) generation.</p>
-    <p>Contact: li_huang@sjtu.edu.cn (Li Huang), yangforever@sjtu.edu.cn (Yangbo Wei)</p>
-    <p>Download is available at:</p>
-    <ul>
-        <li>GitHub project: <a href="https://github.com/chat-cell/chat-cell.github.io">https://github.com/chat-cell/chat-cell.github.io</a></li>
-    </ul>
-    <h3>Example</h3>
-    <div class="row">
-        <div class="col-6">
-            <img src="./webui/img/chat_pcell.png" width="100%" />
+    <div id="shop-modal">
+        <div class="shop-content">
+            <span class="shop-close" onclick="closeShop()">&times;</span>
+            <h2 style="color: #00ccff; margin-top: 0;">🛍️ 黄力的神秘商店</h2>
+            <div style="font-size: 18px; margin-bottom: 5px;">当前积分: <span id="shop-points" style="color:#ffcc00; font-weight:bold; font-family:'Courier New'">0</span></div>
+            
+            <div class="shop-grid">
+                <div class="shop-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 100 100" width="50" height="50">
+                            <path d="M25 20 L30 90 Q32 98 50 98 Q68 98 70 90 L75 20 Z" fill="#D2B48C" stroke="#fff" stroke-width="2"/>
+                            <ellipse cx="50" cy="20" rx="26" ry="8" fill="#eee" />
+                            <line x1="50" y1="20" x2="65" y2="0" stroke="#f00" stroke-width="6" stroke-linecap="round"/>
+                            <circle cx="40" cy="85" r="4" fill="#000"/><circle cx="60" cy="80" r="4" fill="#000"/><circle cx="50" cy="75" r="4" fill="#000"/>
+                        </svg>
+                    </div>
+                    <div class="shop-item-name">一点点奶茶</div>
+                    <div class="shop-item-cost">10 积分</div>
+                    <button class="btn-buy" onclick="buyItem(10, '一点点奶茶')">兑换</button>
+                </div>
+                <div class="shop-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 100 100" width="50" height="50">
+                            <path d="M10 40 Q20 20 50 25 Q80 30 90 50 Q95 70 70 80 Q40 90 20 70 Q5 60 10 40 Z" fill="#8B0000" stroke="#FF6347" stroke-width="2"/>
+                            <path d="M30 40 Q50 35 70 50" stroke="#FF6347" stroke-width="3" fill="none"/>
+                            <path d="M25 60 Q45 55 60 70" stroke="#FF6347" stroke-width="3" fill="none"/>
+                        </svg>
+                    </div>
+                    <div class="shop-item-name">邱翠花烤肉券</div>
+                    <div class="shop-item-cost">20 积分</div>
+                    <button class="btn-buy" onclick="buyItem(20, '邱翠花自助烤肉券')">兑换</button>
+                </div>
+                <div class="shop-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 100 100" width="50" height="50">
+                            <path d="M10 50 Q30 20 50 40 Q70 20 90 50" fill="#FF1493" stroke="#fff" stroke-width="1"/>
+                            <path d="M10 50 Q50 90 90 50" fill="#FF1493" stroke="#fff" stroke-width="1"/>
+                            <path d="M15 50 Q50 60 85 50" stroke="#600" stroke-width="2" fill="none"/>
+                        </svg>
+                    </div>
+                    <div class="shop-item-name">黄力的香吻</div>
+                    <div class="shop-item-cost">30 积分</div>
+                    <button class="btn-buy" onclick="buyItem(30, '黄力的香吻一枚')">兑换</button>
+                </div>
+                 <div class="shop-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 100 100" width="50" height="50">
+                            <path d="M10 40 Q10 90 50 90 Q90 90 90 40 Z" fill="#b71c1c" stroke="#fff" stroke-width="2"/>
+                            <ellipse cx="50" cy="40" rx="40" ry="10" fill="#d32f2f" stroke="#fff" stroke-width="2"/>
+                            <ellipse cx="50" cy="40" rx="35" ry="8" fill="#ff5722" />
+                            <line x1="20" y1="10" x2="40" y2="50" stroke="#FFD700" stroke-width="3" />
+                            <line x1="30" y1="10" x2="50" y2="50" stroke="#FFD700" stroke-width="3" />
+                            <path d="M40 20 Q50 10 60 20" stroke="#fff" stroke-width="2" fill="none" opacity="0.5"/>
+                        </svg>
+                    </div>
+                    <div class="shop-item-name">海底捞五折券</div>
+                    <div class="shop-item-cost">40 积分</div>
+                    <button class="btn-buy" onclick="buyItem(40, '海底捞五折券')">兑换</button>
+                </div>
+                <div class="shop-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 100 100" width="60" height="60">
+                             <path d="M10 60 L20 40 Q35 25 65 25 L80 40 L90 60 Q95 65 90 75 L10 75 Q5 65 10 60 Z" fill="#fff" stroke="#333" stroke-width="2"/>
+                             <path d="M25 40 L35 30 H65 L75 40 Z" fill="#87CEEB"/>
+                             <circle cx="25" cy="75" r="10" fill="#333" stroke="#fff" stroke-width="2"/>
+                             <circle cx="75" cy="75" r="10" fill="#333" stroke="#fff" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <div class="shop-item-name">Tesla Model 3</div>
+                    <div class="shop-item-cost">100 积分</div>
+                    <button class="btn-buy" onclick="buyItem(100, 'Tesla Model 3')">兑换</button>
+                </div>
+                <div class="shop-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 100 100" width="50" height="50">
+                            <path d="M15 75 Q50 95 85 75 Q95 70 85 65 Q50 85 15 65 Q5 70 15 75 Z" fill="#8B4513" stroke="#3E2723" stroke-width="1"/>
+                            <path d="M20 60 Q50 80 80 60 Q85 55 75 50 Q50 70 25 50 Q15 55 20 60 Z" fill="#8B4513" stroke="#3E2723" stroke-width="1"/>
+                            <path d="M30 45 Q50 60 70 45 Q75 40 50 15 Q25 40 30 45 Z" fill="#8B4513" stroke="#3E2723" stroke-width="1"/>
+                            <circle cx="40" cy="50" r="3" fill="#fff"/> <circle cx="40" cy="50" r="1" fill="#000"/>
+                            <circle cx="60" cy="50" r="3" fill="#fff"/> <circle cx="60" cy="50" r="1" fill="#000"/>
+                            <path d="M45 60 Q50 65 55 60" stroke="#000" stroke-width="1" fill="none"/>
+                            <circle cx="80" cy="20" r="2" fill="#000" />
+                            <path d="M78 20 Q75 10 82 15" stroke="#aaa" fill="none"/>
+                        </svg>
+                    </div>
+                    <div class="shop-item-name">黄力的新鲜大便</div>
+                    <div class="shop-item-cost" style="color:#ff4400">1000 积分</div>
+                    <button class="btn-buy" onclick="buyItem(1000, '黄力的新鲜大便一坨')">兑换</button>
+                </div>
+            </div>
         </div>
     </div>
-    <p>A chat-pcell will be released soon!</p>
-</div>
 
-<script src="js/bootstrap.min.js"></script>
+<script>
+    // --- 音效管理器 ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = new AudioContext();
+
+    function tryResumeAudio() { if (audioCtx.state === 'suspended') audioCtx.resume(); }
+
+    const soundEffects = {
+        click: () => {
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+        },
+        pegHit: () => {
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            const freq = 800 + Math.random() * 400; osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+        },
+        spin: () => {
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.type = 'square'; osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.05);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+        },
+        win: () => {
+            [523.25, 659.25, 783.99].forEach((freq, i) => {
+                setTimeout(() => {
+                    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                    osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+                }, i * 100);
+            });
+        },
+        lose: () => {
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 0.4);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+        },
+        charge: (powerPercent) => {
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(200 + powerPercent * 5, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.05, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.05);
+            osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+        }
+    };
+
+    // --- 游戏参数 ---
+    let beads = 200;
+    let currentBet = 5;
+    let wonThisRound = 0;
+    let points = 0;
+    let currentMultiplier = 0;
+    let targetHoles = [];
+    let gameState = 'IDLE'; 
+
+    const multiplierMap = { 2: 5, 4: 4, 6: 3, 8: 2, 10: 1 };
+    const multipliers = Object.keys(multiplierMap).map(Number);
+    const totalHoles = 10;
+    
+    // Canvas
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;   
+    const height = canvas.height; 
+    
+    // --- 管道与区域设置 ---
+    const pipeWidth = 50;
+    const playAreaWidth = 350; // width (400) - pipeWidth (50)
+    const pipeWallX = playAreaWidth; 
+    const pipeCurvePivotY = 60; 
+    
+    const holeWidth = playAreaWidth / totalHoles; // 35px
+    
+    // 物理参数
+    const ballRadius = 8;
+    const pegRadius = 5; 
+    const gravity = 0.25;
+    const wallBounciness = 0.6;
+    
+    let ball = { 
+        x: 0, y: 0, vx: 0, vy: 0, 
+        active: false, 
+        inChannel: true 
+    };
+    
+    let pegs = [];
+
+    // --- 初始化 ---
+    function init() {
+        createPegs(); createLights(); createHoleIndicators(); updateUI(); requestAnimationFrame(gameLoop);
+    }
+
+    function createPegs() {
+        pegs = [];
+        const rows = 9; const startY = 120; const spacingX = 40; const spacingY = 35;
+        for (let row = 0; row < rows; row++) {
+            const rowIsEven = row % 2 === 0; const cols = rowIsEven ? 8 : 7; 
+            const rowWidth = (cols - 1) * spacingX; const marginLeft = (playAreaWidth - rowWidth) / 2;
+            for (let col = 0; col < cols; col++) {
+                let jitter = (Math.random() - 0.5) * 4; 
+                pegs.push({ x: marginLeft + col * spacingX + jitter, y: startY + row * spacingY, flashVal: 0 });
+            }
+        }
+    }
+
+    function createLights() {
+        const container = document.getElementById('multiplier-lights'); container.innerHTML = '';
+        multipliers.forEach(m => {
+            const div = document.createElement('div'); div.className = 'lamp'; div.id = `mult-lamp-${m}`; div.innerText = `x${m}`; container.appendChild(div);
+        });
+    }
+
+    function createHoleIndicators() {
+        const container = document.getElementById('hole-indicators'); container.innerHTML = '';
+        for(let i=0; i<totalHoles; i++) {
+            const div = document.createElement('div'); div.className = 'hole-lamp'; div.id = `hole-lamp-${i}`; div.innerText = (i+1); container.appendChild(div);
+        }
+    }
+
+    // --- 交互逻辑 ---
+    function increaseBet() {
+        tryResumeAudio(); soundEffects.click();
+        if (gameState !== 'IDLE') return;
+        if (beads >= currentBet + 5) currentBet += 5; else { currentBet = beads; setMessage("已达到最大可下注额！"); }
+        updateUI();
+    }
+
+    function startGame() {
+        tryResumeAudio(); soundEffects.click();
+        if (beads < currentBet || beads <= 0) { setMessage("弹珠不足！请联系黄老板充值。"); checkGameOver(); return; }
+        beads -= currentBet; wonThisRound = 0; gameState = 'SPINNING'; updateUI(); setMessage("抽奖中...");
+        
+        let spinCount = 0;
+        const spinInterval = setInterval(() => {
+            clearLights(); soundEffects.spin();
+            const randMult = multipliers[Math.floor(Math.random() * multipliers.length)];
+            highlightMultiplier(randMult);
+            const numToLight = multiplierMap[randMult];
+            const randomHoles = getRandomHoles(numToLight);
+            randomHoles.forEach(h => highlightHole(h));
+            spinCount++; if (spinCount > 15) { clearInterval(spinInterval); lockInTarget(); }
+        }, 80);
+    }
+
+    function lockInTarget() {
+        clearLights(); soundEffects.click();
+        currentMultiplier = multipliers[Math.floor(Math.random() * multipliers.length)];
+        highlightMultiplier(currentMultiplier);
+        const numHolesToLight = multiplierMap[currentMultiplier];
+        targetHoles = getRandomHoles(numHolesToLight);
+        targetHoles.forEach(h => highlightHole(h));
+        gameState = 'READY_TO_LAUNCH'; updateUI(); setMessage(`目标锁定 ${currentMultiplier}倍！请蓄力发射！`);
+    }
+
+    function getRandomHoles(count) {
+        const available = Array.from({length: totalHoles}, (_, i) => i); const selected = [];
+        for (let i = 0; i < count; i++) {
+            const randomIndex = Math.floor(Math.random() * available.length); selected.push(available[randomIndex]); available.splice(randomIndex, 1);
+        } return selected;
+    }
+
+    // 发射
+    let chargePower = 0; let chargeInterval = null;
+    function startCharge() {
+        if (gameState !== 'READY_TO_LAUNCH') return;
+        tryResumeAudio(); chargePower = 0; const bar = document.getElementById('power-bar');
+        chargeInterval = setInterval(() => {
+            chargePower += 3; if (chargePower > 100) chargePower = 100;
+            bar.style.width = chargePower + '%';
+            if (chargePower % 10 < 3) soundEffects.charge(chargePower);
+        }, 20);
+    }
+    function cancelCharge() { if (chargeInterval) { clearInterval(chargeInterval); chargeInterval = null; document.getElementById('power-bar').style.width = '0%'; } }
+    
+    function releaseBall() {
+        if (gameState !== 'READY_TO_LAUNCH' || !chargeInterval) return;
+        clearInterval(chargeInterval); chargeInterval = null;
+        
+        soundEffects.click();
+        ball.active = true; 
+        ball.inChannel = true; 
+        ball.x = width - 25;   
+        ball.y = height - 50;
+        
+        let power = (chargePower / 100) * 26 + 15; 
+        ball.vy = -power; 
+        ball.vx = 0; 
+        
+        gameState = 'LAUNCHING'; updateUI(); document.getElementById('power-bar').style.width = '0%'; setMessage("弹珠发射！");
+    }
+
+    // --- 核心物理引擎 (分段处理) ---
+    function gameLoop() {
+        ctx.clearRect(0, 0, width, height); drawBoard();
+        if (ball.active) {
+            if (ball.inChannel) {
+                updateLaunchPhysics();
+            } else {
+                updatePlayPhysics();
+            }
+            drawBall();
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    // 1. 发射阶段物理
+    function updateLaunchPhysics() {
+        ball.vy += gravity; 
+        ball.x += ball.vx; 
+        ball.y += ball.vy;
+
+        const pipeInnerLeft = pipeWallX + 5;
+        const pipeInnerRight = width - 5;
+
+        // A. 顶部弯管强制导向区
+        if (ball.y < pipeCurvePivotY) {
+            ball.vx -= 1.5; // 强力左推
+            
+            // 贴顶滑动，不反弹
+            if (ball.y < ballRadius + 2) {
+                ball.y = ballRadius + 2;
+                ball.vy = 0; 
+            }
+        } 
+        // B. 直管区域
+        else {
+            if (ball.x < pipeInnerLeft + ballRadius) { ball.x = pipeInnerLeft + ballRadius; ball.vx *= -0.5; }
+            if (ball.x > pipeInnerRight - ballRadius) { ball.x = pipeInnerRight - ballRadius; ball.vx *= -0.5; }
+        }
+
+        // C. 状态切换：飞出管道
+        if (ball.x < pipeWallX) {
+            ball.inChannel = false;
+            ball.vx += (Math.random() - 0.5);
+        }
+    }
+
+    // 2. 游戏阶段物理
+    function updatePlayPhysics() {
+        ball.vy += gravity; 
+        ball.x += ball.vx; 
+        ball.y += ball.vy;
+
+        // 右侧实体墙
+        if (ball.x > pipeWallX - ballRadius) {
+            ball.x = pipeWallX - ballRadius;
+            ball.vx *= -wallBounciness;
+        }
+
+        // 左墙
+        if (ball.x < ballRadius) { ball.x = ballRadius; ball.vx *= -wallBounciness; }
+
+        // 钉子碰撞
+        pegs.forEach(peg => {
+            const pdx = ball.x - peg.x; const pdy = ball.y - peg.y; 
+            const pdist = Math.sqrt(pdx*pdx + pdy*pdy); 
+            if (pdist < ballRadius + pegRadius) {
+                const nx = pdx/pdist; const ny = pdy/pdist;
+                ball.x += nx*(ballRadius + pegRadius - pdist); ball.y += ny*(ballRadius + pegRadius - pdist);
+                const dot = ball.vx*nx + ball.vy*ny;
+                ball.vx = (ball.vx - 2*dot*nx)*0.6 + (Math.random()-0.5); 
+                ball.vy = (ball.vy - 2*dot*ny)*0.6;
+                peg.flashVal = 1.0; 
+                soundEffects.pegHit(); 
+            }
+        });
+
+        // 底部进洞
+        if (ball.y > height - ballRadius) finishRound();
+    }
+
+    function drawBoard() {
+        // 1. 边界
+        ctx.save(); ctx.strokeStyle = '#5a3e2b'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(0, 20); ctx.quadraticCurveTo(0, 0, 20, 0); ctx.lineTo(width - 20, 0); ctx.quadraticCurveTo(width, 0, width, 20); ctx.lineTo(width, height); ctx.lineTo(0, height); ctx.closePath(); ctx.stroke(); ctx.restore();
+
+        // 2. 绘制实体管道 (Visuals - 精简版)
+        ctx.save();
+        // 管道右墙
+        ctx.fillStyle = '#333'; ctx.fillRect(width - 5, pipeCurvePivotY, 5, height - pipeCurvePivotY);
+        // 管道左墙 (分隔墙)
+        ctx.fillStyle = '#555'; ctx.fillRect(pipeWallX, pipeCurvePivotY, 5, height - pipeCurvePivotY);
+        
+        // 管道背景
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+        ctx.fillRect(pipeWallX, 0, pipeWidth, height);
+        ctx.restore();
+
+        // 3. 钉子
+        pegs.forEach(peg => {
+            if (peg.flashVal > 0) peg.flashVal -= 0.1;
+            const isHit = peg.flashVal > 0.5;
+            ctx.beginPath(); ctx.arc(peg.x, peg.y, pegRadius, 0, Math.PI*2);
+            const grad = ctx.createRadialGradient(peg.x - 2, peg.y - 2, 1, peg.x, peg.y, pegRadius);
+            if (isHit) { grad.addColorStop(0, '#ffaaaa'); grad.addColorStop(1, '#ff0000'); } 
+            else { grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.3, '#bbbbbb'); grad.addColorStop(1, '#666666'); }
+            ctx.fillStyle = grad; ctx.fill();
+        });
+
+        // 4. 洞口线
+        ctx.strokeStyle = '#884400'; ctx.lineWidth = 2;
+        for (let i = 1; i <= totalHoles; i++) {
+            const x = i * holeWidth;
+            if (x <= pipeWallX) { ctx.beginPath(); ctx.moveTo(x, height-50); ctx.lineTo(x, height); ctx.stroke(); }
+        }
+        
+        // 5. 目标
+        ctx.fillStyle = 'rgba(255, 50, 0, 0.2)';
+        targetHoles.forEach(h => { ctx.fillRect(h * holeWidth + 1, height - 50, holeWidth - 2, 50); });
+    }
+
+    function drawBall() {
+        ctx.beginPath(); ctx.arc(ball.x, ball.y, ballRadius, 0, Math.PI*2); 
+        const grad = ctx.createRadialGradient(ball.x-2, ball.y-2, 2, ball.x, ball.y, ballRadius);
+        grad.addColorStop(0, 'white'); grad.addColorStop(1, 'silver');
+        ctx.fillStyle = grad; ctx.fill(); ctx.strokeStyle = '#444'; ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    // --- 结算与辅助 ---
+    function finishRound() {
+        ball.active = false;
+        if (ball.x > pipeWallX) { resetGame(); return; }
+
+        const landedHole = Math.max(0, Math.min(totalHoles - 1, Math.floor(ball.x / holeWidth)));
+
+        if (targetHoles.includes(landedHole)) {
+            soundEffects.win(); 
+            const winAmount = currentBet * currentMultiplier; beads += winAmount; wonThisRound = winAmount;
+            const pointsWon = Math.floor(winAmount / 50);
+            if (pointsWon > 0) { points += pointsWon; setMessage(pointsWon >= 3 ? `🔥 大奖！赢得 ${winAmount} 弹珠！+${pointsWon} 积分！` : `🎉 恭喜！赢得 ${winAmount} 弹珠，+${pointsWon} 积分。`); }
+            else { setMessage(`🎉 恭喜！落入 ${landedHole+1}号洞，赢得 ${winAmount} 弹珠！`); }
+            clearLights(); highlightHole(landedHole); highlightMultiplier(currentMultiplier);
+        } else {
+            soundEffects.lose(); setMessage(`遗憾！落入 ${landedHole+1}号洞，未命中目标。`);
+        }
+        checkGameOver(); setTimeout(resetGame, 2000); updateUI();
+    }
+    
+    function resetGame() {
+        if (beads > 0) { gameState = 'IDLE'; targetHoles = []; clearLights(); if (beads >= 5) currentBet = 5; else currentBet = beads; updateUI(); }
+    }
+    function checkGameOver() { if (beads <= 0) { gameState = 'GAME_OVER'; setMessage("GAME OVER！请充值！"); currentBet = 0; } }
+    function clearLights() { document.querySelectorAll('.lamp').forEach(el => el.classList.remove('active')); document.querySelectorAll('.hole-lamp').forEach(el => el.classList.remove('target')); }
+    function highlightMultiplier(m) { document.getElementById(`mult-lamp-${m}`)?.classList.add('active'); }
+    function highlightHole(h) { document.getElementById(`hole-lamp-${h}`)?.classList.add('target'); }
+    function updateUI() {
+        document.getElementById('bead-display').innerText = beads; document.getElementById('bet-display').innerText = currentBet;
+        document.getElementById('won-display').innerText = wonThisRound; document.getElementById('points-display').innerText = points; document.getElementById('shop-points').innerText = points;
+        const isIdle = gameState === 'IDLE';
+        document.getElementById('btn-start').disabled = !isIdle || beads <= 0 || currentBet <= 0;
+        document.getElementById('btn-bet').disabled = !isIdle || beads <= 0;
+        document.getElementById('btn-launch').disabled = gameState !== 'READY_TO_LAUNCH';
+    }
+    function setMessage(msg) { document.getElementById('message').innerText = msg; }
+    function openShop() { tryResumeAudio(); soundEffects.click(); document.getElementById('shop-modal').style.display = 'flex'; updateUI(); }
+    function closeShop() { document.getElementById('shop-modal').style.display = 'none'; }
+    function buyItem(cost, itemName) {
+        soundEffects.click();
+        if (points >= cost) { points -= cost; alert(itemName.includes('大便') ? `💩 真的吗？\n您花费巨资兑换了：[${itemName}]！` : `🎉 恭喜老板！\n您已成功兑换：[${itemName}]！`); updateUI(); }
+        else { alert(`积分不足！还需要 ${cost - points} 积分。`); }
+    }
+
+    init();
+</script>
 </body>
 </html>
