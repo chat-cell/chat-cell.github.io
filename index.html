@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>黄力的弹珠碰碰乐</title>
+    <title>黄力的弹珠碰碰乐 </title>
     <style>
         /* --- 基础样式 --- */
         body {
@@ -31,7 +31,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            width: 440px;
+            width: 440px; 
             position: relative;
         }
 
@@ -58,10 +58,13 @@
         canvas {
             background: radial-gradient(circle at 40% 30%, #2b2b48 0%, #000000 100%);
             border: 5px solid #5a3e2b;
+            border-bottom: none;
             border-radius: 20px 20px 0 0;
             box-shadow: inset 0 0 30px #000;
             cursor: pointer;
             display: block;
+            width: 400px; 
+            height: 500px;
         }
 
         .lights-panel {
@@ -93,12 +96,14 @@
 
         /* --- 底部洞口指示 --- */
         .holes-container {
-            width: 100%;
+            width: 410px;
             display: flex;
             background: #111;
             border-radius: 0 0 10px 10px;
+            border: 5px solid #5a3e2b;
             border-top: 2px solid #884400;
             box-sizing: border-box;
+            height: 40px;
         }
 
         .holes-indicator {
@@ -106,16 +111,24 @@
             width: 350px; 
             margin: 0; padding: 0;
         }
+        
         .hole-lamp {
-            width: 35px;
-            box-sizing: border-box;
-            text-align: center; 
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 12px; 
             color: #555;
-            padding-top: 8px;
+            border-right: 1px solid #333;
         }
+        .hole-lamp:last-child { border-right: none; }
+
         .hole-lamp.target {
             color: #ff3300; font-weight: bold; text-shadow: 0 0 8px red; background: rgba(255,0,0,0.1);
+        }
+        
+        .hole-lamp.bonus-active {
+            color: #FFD700; font-weight: bold; text-shadow: 0 0 10px gold; background: rgba(255, 215, 0, 0.2);
         }
         
         .pipe-base {
@@ -123,6 +136,8 @@
             background: #1a1a1a;
             border-left: 2px solid #444;
             box-sizing: border-box;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; color: #444;
         }
 
         /* --- 控制区域 --- */
@@ -265,7 +280,7 @@
         
         <div class="holes-container">
              <div class="holes-indicator" id="hole-indicators"></div>
-             <div class="pipe-base"></div>
+             <div class="pipe-base">LAUNCH</div>
         </div>
 
         <div id="message">欢迎光临！请调整赌注后点击开始。</div>
@@ -372,7 +387,7 @@
                             <path d="M78 20 Q75 10 82 15" stroke="#aaa" fill="none"/>
                         </svg>
                     </div>
-                    <div class="shop-item-name">黄力的新鲜大便</div>
+                    <div class="shop-item-name">黄力的大便</div>
                     <div class="shop-item-cost" style="color:#ff4400">1000 积分</div>
                     <button class="btn-buy" onclick="buyItem(1000, '黄力的新鲜大便一坨')">兑换</button>
                 </div>
@@ -417,6 +432,16 @@
                 }, i * 100);
             });
         },
+        bonusWin: () => {
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+                setTimeout(() => {
+                    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+                    osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.8);
+                }, i * 80);
+            });
+        },
         lose: () => {
             const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
             osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 0.4);
@@ -428,6 +453,13 @@
             osc.frequency.setValueAtTime(200 + powerPercent * 5, audioCtx.currentTime);
             gain.gain.setValueAtTime(0.05, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.05);
             osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+        },
+        explode: () => {
+             const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+             osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, audioCtx.currentTime);
+             osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.5);
+             gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+             osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.5);
         }
     };
 
@@ -439,8 +471,14 @@
     let currentMultiplier = 0;
     let targetHoles = [];
     let gameState = 'IDLE'; 
+    let roundsPlayed = 0;
+    let isBonusRound = false;
 
-    const multiplierMap = { 2: 5, 4: 4, 6: 3, 8: 2, 10: 1 };
+    // 彩蛋与特效
+    let easterEggClicks = 0;
+    let particles = [];
+
+    const multiplierMap = { 2: 6, 4: 5, 6: 4, 8: 3, 10: 1 };
     const multipliers = Object.keys(multiplierMap).map(Number);
     const totalHoles = 10;
     
@@ -451,80 +489,63 @@
     
     // --- 管道与区域设置 ---
     const pipeWidth = 50;
-    const playAreaWidth = 350; // 游戏区宽度
+    const playAreaWidth = 350; 
     const pipeWallX = playAreaWidth; 
-    const pipeCurvePivotY = 60; 
     
     const holeWidth = playAreaWidth / totalHoles; 
     
     // 物理参数
     const ballRadius = 12;
     const gravity = 0.25;
-    const wallBounciness = 0.8;
+    const wallBounciness = 0.6;
     
     let ball = { 
         x: 0, y: 0, vx: 0, vy: 0, 
         active: false, 
-        inChannel: true 
+        inChannel: true,
+        // 防卡死新变量
+        monitorX: 0, 
+        monitorY: 0,
+        stuckTimer: 0,    // 累积卡住的帧数
+        ghostTimer: 0     // 幽灵模式倒计时
     };
     
     let pegs = [];
 
     // --- 初始化 ---
     function init() {
-        createPegs(); createLights(); createHoleIndicators(); updateUI(); requestAnimationFrame(gameLoop);
+        createPegs(); createLights(); createHoleIndicators(); updateUI(); 
+        
+        canvas.addEventListener('mousedown', handleCanvasClick);
+        
+        requestAnimationFrame(gameLoop);
     }
 
     function createPegs() {
         pegs = [];
-        // 参考图：顶部大银球（Bumpers）
-        // 第一排大球
         const topRow1Y = 90;
         const topRow1Cols = 6;
         const spacingLarge = 58; 
         const marginLarge = (playAreaWidth - (topRow1Cols-1)*spacingLarge) / 2;
         
         for (let c=0; c<topRow1Cols; c++) {
-             pegs.push({
-                 x: marginLarge + c * spacingLarge,
-                 y: topRow1Y,
-                 radius: 12, // 大号
-                 type: 'large',
-                 flashVal: 0
-             });
+             pegs.push({ x: marginLarge + c * spacingLarge, y: topRow1Y, radius: 12, type: 'large', flashVal: 0 });
         }
         
-        // 第二排大球
         const topRow2Y = 130;
         const topRow2Cols = 5;
         const marginLarge2 = (playAreaWidth - (topRow2Cols-1)*spacingLarge) / 2;
         for (let c=0; c<topRow2Cols; c++) {
-             pegs.push({
-                 x: marginLarge2 + c * spacingLarge,
-                 y: topRow2Y,
-                 radius: 12, // 大号
-                 type: 'large',
-                 flashVal: 0
-             });
+             pegs.push({ x: marginLarge2 + c * spacingLarge, y: topRow2Y, radius: 12, type: 'large', flashVal: 0 });
         }
 
-        // 下方密集小金球
-        const rows = 8; 
-        const startY = 180; 
-        const spacingX = 40; 
-        const spacingY = 35;
+        const rows = 8; const startY = 180; const spacingX = 40; const spacingY = 35;
         for (let row = 0; row < rows; row++) {
             const rowIsEven = row % 2 === 0; const cols = rowIsEven ? 8 : 7; 
             const rowWidth = (cols - 1) * spacingX; const marginLeft = (playAreaWidth - rowWidth) / 2;
             for (let col = 0; col < cols; col++) {
                 let jitter = (Math.random() - 0.5) * 4; 
-                pegs.push({ 
-                    x: marginLeft + col * spacingX + jitter, 
-                    y: startY + row * spacingY, 
-                    radius: 5, // 小号
-                    type: 'normal',
-                    flashVal: 0 
-                });
+                pegs.push({ x: marginLeft + col * spacingX + jitter, y: startY + row * spacingY, radius: 5, type: 'normal', flashVal: 0 });
             }
         }
     }
@@ -542,6 +563,46 @@
             const div = document.createElement('div'); div.className = 'hole-lamp'; div.id = `hole-lamp-${i}`; div.innerText = (i+1); container.appendChild(div);
         }
     }
+    
+    // --- 彩蛋逻辑 ---
+    function handleCanvasClick(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        if(pegs.length > 0) {
+            const p = pegs[0];
+            const dist = Math.sqrt((mouseX - p.x)**2 + (mouseY - p.y)**2);
+            if(dist < p.radius + 10) {
+                easterEggClicks++;
+                soundEffects.click();
+                if(easterEggClicks >= 5) {
+                    triggerEasterEgg();
+                    easterEggClicks = 0;
+                }
+            } else {
+                easterEggClicks = 0; 
+            }
+        }
+    }
+
+    function triggerEasterEgg() {
+        beads += 1000;
+        updateUI();
+        setMessage("🎉 恭喜触发黄力为你亲手埋下的彩蛋！获得1000弹珠！ 🎉");
+        soundEffects.bonusWin();
+        soundEffects.explode();
+        
+        for(let i=0; i<100; i++) {
+            particles.push({
+                x: width/2, y: height/3,
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 0.5) * 10,
+                life: 1.0,
+                color: `hsl(${Math.random()*360}, 100%, 50%)`
+            });
+        }
+    }
 
     // --- 交互逻辑 ---
     function increaseBet() {
@@ -554,16 +615,22 @@
     function startGame() {
         tryResumeAudio(); soundEffects.click();
         if (beads < currentBet || beads <= 0) { setMessage("弹珠不足！请联系黄老板充值。"); checkGameOver(); return; }
-        beads -= currentBet; wonThisRound = 0; gameState = 'SPINNING'; updateUI(); setMessage("抽奖中...");
+        
+        roundsPlayed++; isBonusRound = (roundsPlayed % 10 === 0);
+        beads -= currentBet; wonThisRound = 0; gameState = 'SPINNING'; updateUI(); 
+        setMessage(isBonusRound ? "🌟 黄金时刻！随便进洞都中奖！🌟" : "抽奖中...");
         
         let spinCount = 0;
         const spinInterval = setInterval(() => {
             clearLights(); soundEffects.spin();
             const randMult = multipliers[Math.floor(Math.random() * multipliers.length)];
             highlightMultiplier(randMult);
-            const numToLight = multiplierMap[randMult];
-            const randomHoles = getRandomHoles(numToLight);
-            randomHoles.forEach(h => highlightHole(h));
+            if (isBonusRound) { for(let i=0; i<totalHoles; i++) highlightHole(i, true); }
+            else {
+                const numToLight = multiplierMap[randMult];
+                const randomHoles = getRandomHoles(numToLight);
+                randomHoles.forEach(h => highlightHole(h, false));
+            }
             spinCount++; if (spinCount > 15) { clearInterval(spinInterval); lockInTarget(); }
         }, 80);
     }
@@ -572,10 +639,18 @@
         clearLights(); soundEffects.click();
         currentMultiplier = multipliers[Math.floor(Math.random() * multipliers.length)];
         highlightMultiplier(currentMultiplier);
-        const numHolesToLight = multiplierMap[currentMultiplier];
-        targetHoles = getRandomHoles(numHolesToLight);
-        targetHoles.forEach(h => highlightHole(h));
-        gameState = 'READY_TO_LAUNCH'; updateUI(); setMessage(`目标锁定 ${currentMultiplier}倍！请蓄力发射！`);
+        
+        if (isBonusRound) {
+            targetHoles = Array.from({length: totalHoles}, (_, i) => i);
+            targetHoles.forEach(h => highlightHole(h, true));
+            setMessage(`✨ 黄金模式 x${currentMultiplier}！请发射！`);
+        } else {
+            const numHolesToLight = multiplierMap[currentMultiplier];
+            targetHoles = getRandomHoles(numHolesToLight);
+            targetHoles.forEach(h => highlightHole(h, false));
+            setMessage(`目标锁定 ${currentMultiplier}倍！请蓄力发射！`);
+        }
+        gameState = 'READY_TO_LAUNCH'; updateUI(); 
     }
 
     function getRandomHoles(count) {
@@ -605,10 +680,16 @@
         soundEffects.click();
         ball.active = true; 
         ball.inChannel = true; 
+        
+        // 重置防卡死变量
+        ball.stuckTimer = 0;
+        ball.ghostTimer = 0;
+        ball.monitorX = ball.x; ball.monitorY = ball.y;
+
         ball.x = width - 25;   
         ball.y = height - 50;
         
-        let power = (chargePower / 100) * 26 + 15; 
+        let power = 18 + (chargePower / 100) * 27; 
         ball.vy = -power; 
         ball.vx = 0; 
         
@@ -617,7 +698,10 @@
 
     // --- 核心物理引擎 ---
     function gameLoop() {
-        ctx.clearRect(0, 0, width, height); drawBoard();
+        ctx.clearRect(0, 0, width, height); 
+        drawBoard();
+        updateParticles();
+        
         if (ball.active) {
             if (ball.inChannel) {
                 updateLaunchPhysics();
@@ -629,118 +713,286 @@
         requestAnimationFrame(gameLoop);
     }
 
-    // 发射阶段
-    function updateLaunchPhysics() {
-        ball.vy += gravity; 
-        ball.x += ball.vx; 
-        ball.y += ball.vy;
-
-        const pipeInnerLeft = pipeWallX + 5;
-        const pipeInnerRight = width - 5;
-
-        // 顶部弯管强制导向
-        if (ball.y < pipeCurvePivotY) {
-            ball.vx -= 1.5; 
-            if (ball.y < ballRadius + 2) {
-                ball.y = ballRadius + 2;
-                ball.vy = 0; 
-            }
-        } else {
-            if (ball.x < pipeInnerLeft + ballRadius) { ball.x = pipeInnerLeft + ballRadius; ball.vx *= -0.5; }
-            if (ball.x > pipeInnerRight - ballRadius) { ball.x = pipeInnerRight - ballRadius; ball.vx *= -0.5; }
-        }
-
-        if (ball.x < pipeWallX) {
-            ball.inChannel = false;
-            ball.vx += (Math.random() - 0.5);
+    function updateParticles() {
+        for(let i=particles.length-1; i>=0; i--) {
+            let p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.vy += 0.1; p.life -= 0.02;
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1.0;
+            if(p.life <= 0) particles.splice(i, 1);
         }
     }
 
-    // 游戏阶段
-    function updatePlayPhysics() {
+    // 发射阶段物理
+// --- 修复后的发射物理引擎 ---
+    function updateLaunchPhysics() {
+        // 1. 常规重力 (但在导向区内会重写)
         ball.vy += gravity; 
         ball.x += ball.vx; 
         ball.y += ball.vy;
 
+        const pipeInnerLeft = pipeWallX + 5;  // 管道左内壁 (355)
+        const pipeInnerRight = width - 5;     // 管道右内壁 (395)
+        const guideZoneY = 120;               // 导向区高度阈值
+
+        // 2. 顶部强力导向逻辑 (核心修复)
+        // 当球进入顶部 120px 区域时
+        if (ball.y < guideZoneY) {
+            
+            // A. 计算导流曲线限制 (天花板)
+            // 我们定义一个圆弧天花板：圆心在 (pipeWallX, guideZoneY)，半径为 guideZoneY
+            // 这是一个从右下 (400, 120) 弯向左上 (350, 0) 的弧线
+            
+            // 计算球心相对于导向圆心的偏移
+            const cx = pipeWallX; 
+            const cy = guideZoneY;
+            const dx = ball.x - cx;
+            const dy = ball.y - cy;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            // 如果球在圆弧内（即碰到了天花板），或者球的速度还在往上冲
+            // 这里的 dist < guideZoneY 代表球进入了圆弧的“实体”部分（左上角区域）
+            // 为了简化体验，我们直接检测高度和位置
+            
+            // B. 强制导向力场 (Vector Field)
+            // 只要在管道里且高度足够高，就施加向左的强力
+            if (ball.x > pipeWallX) {
+                // 如果球还在向上运动 (vy < 0)
+                if (ball.vy < 0) {
+                    // 核心魔法：将向上的速度直接转化为向左的速度
+                    // 越接近顶部，转化率越高
+                    ball.vx -= 1.5;         // 持续施加向左推力
+                    ball.vy *= 0.6;         // 快速衰减垂直速度（防止撞顶太猛）
+                } else {
+                    // 如果球已经开始下落了，但还在管道里，给它一个推力防止直上直下
+                    ball.vx -= 0.5;
+                }
+                
+                // C. 天花板几何限制 (防止穿模)
+                // 简单的线性天花板模拟：y = (x - 350) * 2
+                // 这是一条斜线，从 (350,0) 到 (400,100)
+                const roofHeight = (ball.x - pipeWallX) * 2.0; 
+                if (ball.y < roofHeight + ballRadius) {
+                    ball.y = roofHeight + ballRadius; // 压回轨道
+                    ball.vy = Math.abs(ball.vy) * 0.5; // 稍微向下反弹
+                    ball.vx -= 2.0; // 撞墙后获得巨大的向左反作用力
+                }
+            }
+        } else {
+            // 3. 管道下半部分（垂直段）的常规碰撞
+            if (ball.x < pipeInnerLeft + ballRadius) { 
+                ball.x = pipeInnerLeft + ballRadius; 
+                ball.vx *= -0.5; 
+            }
+            if (ball.x > pipeInnerRight - ballRadius) { 
+                ball.x = pipeInnerRight - ballRadius; 
+                ball.vx *= -0.5; 
+            }
+        }
+
+        // 4. 单向阀门 (离开管道后禁止返回)
+        if (ball.x < pipeWallX) {
+            ball.inChannel = false;
+            // 出来后给一个随机扰动，增加趣味性
+            ball.vx += (Math.random() - 0.5) * 1.5; 
+        }
+        
+        // 5. 发射失败复位 (掉回底部)
+        if (ball.y > height - ballRadius && ball.inChannel) {
+             ball.active = false;
+             gameState = 'READY_TO_LAUNCH';
+             cancelCharge(); 
+             updateUI(); 
+             setMessage("力度太小！请重新发射。");
+        }
+    }
+    // 游戏阶段物理 (主区域)
+    function updatePlayPhysics() {
+        
+        // --- 新增：防卡死监控逻辑 ---
+        // 每一帧计算球与上一帧监控点的距离
+        const dist = Math.sqrt((ball.x - ball.monitorX)**2 + (ball.y - ball.monitorY)**2);
+        
+        // 如果距离很小（认为没动），增加计时器
+        if (dist < 5) {
+            ball.stuckTimer++;
+        } else {
+            // 如果动了，重置计时器和监控点
+            ball.stuckTimer = 0;
+            ball.monitorX = ball.x;
+            ball.monitorY = ball.y;
+        }
+
+        // 如果卡住超过 5 秒 (60帧 * 5 = 300)
+        if (ball.stuckTimer > 300) {
+            ball.ghostTimer = 60; // 开启 1 秒幽灵模式
+            ball.stuckTimer = 0;  // 重置卡死计时
+            setMessage("检测到卡球，启动幽灵模式！");
+        }
+
+        // 幽灵模式倒计时
+        if (ball.ghostTimer > 0) {
+            ball.ghostTimer--;
+        }
+
+        // --- 物理更新 ---
+        ball.vy += gravity; 
+        ball.x += ball.vx; 
+        ball.y += ball.vy;
+
+        // 右侧墙壁 (实体墙)
         if (ball.x > pipeWallX - ballRadius) {
             ball.x = pipeWallX - ballRadius;
             ball.vx *= -wallBounciness;
+            if (Math.abs(ball.vx) < 0.5) ball.vx = -1;
         }
 
-        if (ball.x < ballRadius) { ball.x = ballRadius; ball.vx *= -wallBounciness; }
-
-        // 碰撞 (支持不同半径)
-        pegs.forEach(peg => {
-            const pdx = ball.x - peg.x; const pdy = ball.y - peg.y; 
-            const pdist = Math.sqrt(pdx*pdx + pdy*pdy); 
-            const combinedRadius = ballRadius + peg.radius;
-            
-            if (pdist < combinedRadius) {
-                const nx = pdx/pdist; const ny = pdy/pdist;
-                ball.x += nx*(combinedRadius - pdist); ball.y += ny*(combinedRadius - pdist);
-                const dot = ball.vx*nx + ball.vy*ny;
-                ball.vx = (ball.vx - 2*dot*nx)*0.6 + (Math.random()-0.5); 
-                ball.vy = (ball.vy - 2*dot*ny)*0.6;
-                peg.flashVal = 1.0; 
-                soundEffects.pegHit(); 
+        // 左侧墙壁
+        if (ball.x < ballRadius) { 
+            ball.x = ballRadius; 
+            ball.vx *= -wallBounciness;
+            if (Math.abs(ball.vx) < 0.5) ball.vx = 1;
+        }
+        
+        // 底部洞口挡板碰撞
+        if (ball.y > height - 50) {
+            // 在幽灵模式下，不仅穿钉子，也应该稍微容易进洞，但挡板还是留着防止飞出界
+            // 这里我们只在非幽灵模式或者幽灵模式下保留挡板碰撞（防止球掉出世界）
+            // 还是保留挡板碰撞比较合理，不然球会穿过挡板不知道去哪了
+            for (let i = 1; i < totalHoles; i++) {
+                const lineX = i * holeWidth;
+                if (lineX >= pipeWallX) continue;
+                if (Math.abs(ball.x - lineX) < ballRadius + 2) {
+                     ball.vx *= -0.6; 
+                     if (ball.x < lineX) ball.x = lineX - ballRadius - 2;
+                     else ball.x = lineX + ballRadius + 2;
+                }
             }
-        });
+        }
+
+        // 钉子碰撞 (幽灵模式下跳过此段)
+        if (ball.ghostTimer <= 0) {
+            pegs.forEach(peg => {
+                const pdx = ball.x - peg.x; const pdy = ball.y - peg.y; 
+                const pdist = Math.sqrt(pdx*pdx + pdy*pdy); 
+                const combinedRadius = ballRadius + peg.radius;
+                
+                if (pdist < combinedRadius) {
+                    const nx = pdx/pdist; const ny = pdy/pdist;
+                    ball.x += nx*(combinedRadius - pdist); 
+                    ball.y += ny*(combinedRadius - pdist);
+                    const dot = ball.vx*nx + ball.vy*ny;
+                    ball.vx = (ball.vx - 2*dot*nx)*0.7 + (Math.random()-0.5) * 0.5; 
+                    ball.vy = (ball.vy - 2*dot*ny)*0.7;
+                    peg.flashVal = 1.0; 
+                    soundEffects.pegHit(); 
+                }
+            });
+        }
 
         if (ball.y > height - ballRadius) finishRound();
     }
 
-    function drawBoard() {
-        // 边界
+function drawBoard() {
+        if (isBonusRound && gameState !== 'IDLE') {
+             const alpha = 0.1 + Math.sin(Date.now() / 200) * 0.05;
+             ctx.fillStyle = `rgba(255, 215, 0, ${alpha})`;
+             ctx.fillRect(0, 0, playAreaWidth, height);
+             ctx.font = "bold 40px Arial";
+             ctx.fillStyle = `rgba(255, 255, 255, 0.1)`;
+             ctx.textAlign = "center";
+             ctx.fillText("BONUS", playAreaWidth/2, height/2);
+        }
+
+        // 1. 绘制游戏机外框
         ctx.save(); ctx.strokeStyle = '#5a3e2b'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.moveTo(0, 20); ctx.quadraticCurveTo(0, 0, 20, 0); ctx.lineTo(width - 20, 0); ctx.quadraticCurveTo(width, 0, width, 20); ctx.lineTo(width, height); ctx.lineTo(0, height); ctx.closePath(); ctx.stroke(); ctx.restore();
 
-        // 管道
+        // 2. 绘制管道结构 (完全重绘)
         ctx.save();
-        ctx.fillStyle = '#333'; ctx.fillRect(width - 5, pipeCurvePivotY, 5, height - pipeCurvePivotY);
-        ctx.fillStyle = '#555'; ctx.fillRect(pipeWallX, pipeCurvePivotY, 5, height - pipeCurvePivotY);
+        
+        // A. 管道右壁
+        ctx.fillStyle = '#333'; ctx.fillRect(width - 5, 100, 5, height - 100);
+        
+        // B. 管道左壁（隔墙）
+        ctx.fillStyle = '#555'; ctx.fillRect(pipeWallX, 100, 5, height - 100);
+
+        // C. 顶部巨大导流块 (视觉核心)
+        // 画一个填充的形状，占据右上角，形成一个自然的弯管
+        ctx.beginPath();
+        ctx.moveTo(pipeWallX, 100);        // 隔墙顶点
+        ctx.lineTo(pipeWallX, 0);          // 左上角
+        ctx.lineTo(width, 0);              // 右上角
+        ctx.lineTo(width, 100);            // 右壁顶点
+        // 关键：画一条贝塞尔曲线作为“天花板”
+        // 从右壁(400, 100) 弯曲到 左壁(350, 0)
+        // 控制点在 (350, 100)，形成内凹的弧面
+        ctx.quadraticCurveTo(pipeWallX, 100, pipeWallX, 0);
+        ctx.closePath();
+        
+        // 填充导流块
+        ctx.fillStyle = '#444'; 
+        ctx.fill();
+        ctx.strokeStyle = '#666'; 
+        ctx.lineWidth = 2; 
+        ctx.stroke();
+
+        // D. 管道背景（半透明）
         ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
         ctx.fillRect(pipeWallX, 0, pipeWidth, height);
         ctx.restore();
 
-        // 钉子渲染 (区分金银)
+        // 3. 钉子渲染 (保持不变)
         pegs.forEach(peg => {
             if (peg.flashVal > 0) peg.flashVal -= 0.1;
             const isHit = peg.flashVal > 0.5;
             ctx.beginPath(); ctx.arc(peg.x, peg.y, peg.radius, 0, Math.PI*2);
             
             const grad = ctx.createRadialGradient(peg.x - 2, peg.y - 2, 1, peg.x, peg.y, peg.radius);
-            
-            if (isHit) { 
-                grad.addColorStop(0, '#ffaaaa'); grad.addColorStop(1, '#ff0000'); 
-            } else { 
-                if (peg.type === 'large') {
-                    // 大号：银色
-                    grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.3, '#d0d0d0'); grad.addColorStop(1, '#888888'); 
-                } else {
-                    // 小号：金色 (参考图)
-                    grad.addColorStop(0, '#ffeb3b'); grad.addColorStop(0.3, '#fbc02d'); grad.addColorStop(1, '#f57f17'); 
-                }
+            if (isHit) { grad.addColorStop(0, '#ffaaaa'); grad.addColorStop(1, '#ff0000'); } 
+            else { 
+                if (peg.type === 'large') { grad.addColorStop(0, '#ffffff'); grad.addColorStop(0.3, '#d0d0d0'); grad.addColorStop(1, '#888888'); } 
+                else { grad.addColorStop(0, '#ffeb3b'); grad.addColorStop(0.3, '#fbc02d'); grad.addColorStop(1, '#f57f17'); }
             }
             ctx.fillStyle = grad; ctx.fill();
         });
 
-        // 洞口线
+        // 4. 洞口分割线 (保持不变)
         ctx.strokeStyle = '#884400'; ctx.lineWidth = 2;
-        for (let i = 1; i <= totalHoles; i++) {
+        for (let i = 1; i < totalHoles; i++) {
             const x = i * holeWidth;
-            if (x <= pipeWallX) { ctx.beginPath(); ctx.moveTo(x, height-50); ctx.lineTo(x, height); ctx.stroke(); }
+            if (x < pipeWallX) { 
+                ctx.beginPath(); ctx.moveTo(x, height-50); ctx.lineTo(x, height); ctx.stroke(); 
+                ctx.fillStyle = '#5a3e2b';
+                ctx.fillRect(x-1, height-50, 2, 50);
+            }
         }
         
-        // 目标
-        ctx.fillStyle = 'rgba(255, 50, 0, 0.2)';
-        targetHoles.forEach(h => { ctx.fillRect(h * holeWidth + 1, height - 50, holeWidth - 2, 50); });
+        // 目标高亮区域 (保持不变)
+        if (isBonusRound && targetHoles.length > 0) {
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+            targetHoles.forEach(h => { ctx.fillRect(h * holeWidth + 1, height - 50, holeWidth - 2, 50); });
+        } else {
+            ctx.fillStyle = 'rgba(255, 50, 0, 0.2)';
+            targetHoles.forEach(h => { ctx.fillRect(h * holeWidth + 1, height - 50, holeWidth - 2, 50); });
+        }
     }
 
     function drawBall() {
+        ctx.save();
+        // 幽灵模式下半透明
+        if (ball.ghostTimer > 0) {
+            ctx.globalAlpha = 0.4;
+        }
+        
         ctx.beginPath(); ctx.arc(ball.x, ball.y, ballRadius, 0, Math.PI*2); 
         const grad = ctx.createRadialGradient(ball.x-2, ball.y-2, 2, ball.x, ball.y, ballRadius);
         grad.addColorStop(0, 'white'); grad.addColorStop(1, 'silver');
         ctx.fillStyle = grad; ctx.fill(); ctx.strokeStyle = '#444'; ctx.lineWidth = 1; ctx.stroke();
+        
+        ctx.restore();
     }
 
     // --- 结算与辅助 ---
@@ -751,12 +1003,22 @@
         const landedHole = Math.max(0, Math.min(totalHoles - 1, Math.floor(ball.x / holeWidth)));
 
         if (targetHoles.includes(landedHole)) {
-            soundEffects.win(); 
-            const winAmount = currentBet * currentMultiplier; beads += winAmount; wonThisRound = winAmount;
+            const winAmount = currentBet * currentMultiplier; 
+            beads += winAmount; 
+            wonThisRound = winAmount;
             const pointsWon = Math.floor(winAmount / 50);
-            if (pointsWon > 0) { points += pointsWon; setMessage(pointsWon >= 3 ? `🔥 大奖！赢得 ${winAmount} 弹珠！+${pointsWon} 积分！` : `🎉 恭喜！赢得 ${winAmount} 弹珠，+${pointsWon} 积分。`); }
-            else { setMessage(`🎉 恭喜！落入 ${landedHole+1}号洞，赢得 ${winAmount} 弹珠！`); }
-            clearLights(); highlightHole(landedHole); highlightMultiplier(currentMultiplier);
+            
+            if (isBonusRound) {
+                soundEffects.bonusWin(); setMessage(`🌟 BONUS WIN! 赢得 ${winAmount} 弹珠！`);
+                points += (pointsWon * 2); 
+            } else {
+                soundEffects.win(); if (pointsWon > 0) points += pointsWon;
+                setMessage(`🎉 恭喜！落入 ${landedHole+1}号洞，赢得 ${winAmount} 弹珠！`);
+            }
+            
+            clearLights(); 
+            if (isBonusRound) { for(let i=0; i<totalHoles; i++) highlightHole(i, true); } else { highlightHole(landedHole, false); }
+            highlightMultiplier(currentMultiplier);
         } else {
             soundEffects.lose(); setMessage(`遗憾！落入 ${landedHole+1}号洞，未命中目标。`);
         }
@@ -764,12 +1026,19 @@
     }
     
     function resetGame() {
-        if (beads > 0) { gameState = 'IDLE'; targetHoles = []; clearLights(); if (beads >= 5) currentBet = 5; else currentBet = beads; updateUI(); }
+        if (beads > 0) { gameState = 'IDLE'; targetHoles = []; clearLights(); isBonusRound = false; if (beads >= 5) currentBet = 5; else currentBet = beads; updateUI(); }
     }
     function checkGameOver() { if (beads <= 0) { gameState = 'GAME_OVER'; setMessage("GAME OVER！请充值！"); currentBet = 0; } }
-    function clearLights() { document.querySelectorAll('.lamp').forEach(el => el.classList.remove('active')); document.querySelectorAll('.hole-lamp').forEach(el => el.classList.remove('target')); }
+    
+    function clearLights() { document.querySelectorAll('.lamp').forEach(el => el.classList.remove('active')); document.querySelectorAll('.hole-lamp').forEach(el => {el.classList.remove('target'); el.classList.remove('bonus-active');}); }
+    
     function highlightMultiplier(m) { document.getElementById(`mult-lamp-${m}`)?.classList.add('active'); }
-    function highlightHole(h) { document.getElementById(`hole-lamp-${h}`)?.classList.add('target'); }
+    
+    function highlightHole(h, isBonus) { 
+        const el = document.getElementById(`hole-lamp-${h}`);
+        if(el) { if(isBonus) el.classList.add('bonus-active'); else el.classList.add('target'); }
+    }
+    
     function updateUI() {
         document.getElementById('bead-display').innerText = beads; document.getElementById('bet-display').innerText = currentBet;
         document.getElementById('won-display').innerText = wonThisRound; document.getElementById('points-display').innerText = points; document.getElementById('shop-points').innerText = points;
