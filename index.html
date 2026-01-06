@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>黄力的弹珠碰碰乐 </title>
+    <title>黄力的弹珠碰碰乐</title>
     <style>
         /* --- 基础样式 --- */
         body {
@@ -151,7 +151,8 @@
         
         .game-buttons {
             display: grid;
-            grid-template-columns: 1fr 2fr;
+            /* 修改这里：改为3列，适应梭哈按钮 */
+            grid-template-columns: 1fr 1fr 2.5fr;
             gap: 10px;
         }
 
@@ -161,9 +162,23 @@
             transition: all 0.1s;
         }
         button:active { transform: scale(0.96); filter: brightness(0.9); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); animation: none; }
 
         .btn-bet { background: #ffc107; color: #222; }
+        
+        /* 新增：梭哈按钮样式 */
+        .btn-allin { 
+            background: #dc3545; 
+            color: white; 
+            box-shadow: 0 0 10px rgba(220, 53, 69, 0.5);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
+
         .btn-start { background: #0d6efd; color: white; font-size: 16px; }
         
         .shop-area { margin-top: 15px; width: 100%; }
@@ -288,7 +303,8 @@
         <div class="controls">
             <div class="game-buttons">
                 <button class="btn-bet" id="btn-bet" onclick="increaseBet()">加注 (+5)</button>
-                <button class="btn-start" id="btn-start" onclick="startGame()">确定下注 / 开始</button>
+                <button class="btn-allin" id="btn-allin" onclick="allIn()">🔥 梭哈</button>
+                <button class="btn-start" id="btn-start" onclick="startGame()">确定 / 开始</button>
             </div>
             
             <div class="launch-area">
@@ -389,7 +405,7 @@
                              <circle cx="75" cy="75" r="10" fill="#333" stroke="#fff" stroke-width="2"/>
                         </svg>
                     </div>
-                    <div class="shop-item-name">Tesla Model 3</div>
+                    <div class="shop-item-name">Tesla Model 3体验卡</div>
                     <div class="shop-item-cost">100 积分</div>
                     <button class="btn-buy" onclick="buyItem(100, 'Tesla Model 3')">兑换</button>
                 </div>
@@ -411,6 +427,23 @@
                     <button class="btn-buy" onclick="buyItem(500, '吴菁菁的原味奶罩')">兑换</button>
                 </div>
             
+<div class="shop-item">
+    <div class="icon-box">
+        <svg viewBox="0 0 100 100" width="50" height="50">
+            <path d="M20 90 Q50 100 80 90" stroke="#E6C2A8" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <circle cx="35" cy="90" r="2" fill="#333"/>
+            <circle cx="50" cy="92" r="2" fill="#333"/>
+            <circle cx="65" cy="90" r="2" fill="#333"/>
+            <path d="M35 90 Q25 60 40 50 Q55 40 35 20" stroke="#000" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M50 92 Q60 60 45 40 Q30 20 60 10" stroke="#000" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M65 90 Q75 65 60 50 Q45 35 70 25" stroke="#000" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </svg>
+    </div>
+    <div class="shop-item-name">陈成的腿毛</div>
+    <div class="shop-item-cost" style="color:#A0522D">800 积分</div>
+    <button class="btn-buy" onclick="buyItem(800, '陈成珍藏的浓密腿毛一撮')">兑换</button>
+</div>
+
                 <div class="shop-item">
                     <div class="icon-box">
                         <svg viewBox="0 0 100 100" width="50" height="50">
@@ -424,7 +457,7 @@
                             <path d="M78 20 Q75 10 82 15" stroke="#aaa" fill="none"/>
                         </svg>
                     </div>
-                    <div class="shop-item-name">黄力的大便</div>
+                    <div class="shop-item-name">黄力的黄金大便</div>
                     <div class="shop-item-cost" style="color:#ff4400">1000 积分</div>
                     <button class="btn-buy" onclick="buyItem(1000, '黄力的新鲜大便一坨')">兑换</button>
                 </div>
@@ -649,6 +682,19 @@
         updateUI();
     }
 
+    // --- 新增：梭哈逻辑 ---
+    function allIn() {
+        tryResumeAudio(); soundEffects.click();
+        if (gameState !== 'IDLE') return;
+        if (beads <= 0) { setMessage("口袋空空，拿什么梭哈？"); return; }
+        
+        currentBet = beads;
+        updateUI();
+        soundEffects.bonusWin(); // 激情的音效
+        setMessage("🔥🔥 全 军 出 击 ！ 赢 了 会 所 嫩 模 ！ 🔥🔥");
+    }
+    // --------------------
+
     function startGame() {
         tryResumeAudio(); soundEffects.click();
         if (beads < currentBet || beads <= 0) { setMessage("弹珠不足！请联系黄老板充值。"); checkGameOver(); return; }
@@ -763,7 +809,6 @@
     }
 
     // 发射阶段物理
-// --- 修复后的发射物理引擎 ---
     function updateLaunchPhysics() {
         // 1. 常规重力 (但在导向区内会重写)
         ball.vy += gravity; 
@@ -1080,8 +1125,14 @@ function drawBoard() {
         document.getElementById('bead-display').innerText = beads; document.getElementById('bet-display').innerText = currentBet;
         document.getElementById('won-display').innerText = wonThisRound; document.getElementById('points-display').innerText = points; document.getElementById('shop-points').innerText = points;
         const isIdle = gameState === 'IDLE';
+        
+        // 按钮状态管理
         document.getElementById('btn-start').disabled = !isIdle || beads <= 0 || currentBet <= 0;
         document.getElementById('btn-bet').disabled = !isIdle || beads <= 0;
+        // 梭哈按钮状态
+        const allInBtn = document.getElementById('btn-allin');
+        if (allInBtn) allInBtn.disabled = !isIdle || beads <= 0;
+
         document.getElementById('btn-launch').disabled = gameState !== 'READY_TO_LAUNCH';
     }
     function setMessage(msg) { document.getElementById('message').innerText = msg; }
