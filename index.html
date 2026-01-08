@@ -178,6 +178,22 @@
             100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
         }
 
+
+.btn-restart {
+    background: linear-gradient(45deg, #11998e 0%, #38ef7d 100%); /* 清新的绿色渐变 */
+    color: white;
+    font-size: 18px;
+    grid-column: 1 / -1; /* 让按钮横跨整个网格宽度 */
+    box-shadow: 0 0 15px rgba(56, 239, 125, 0.4);
+    animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+    0% { box-shadow: 0 0 0 0 rgba(56, 239, 125, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(56, 239, 125, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(56, 239, 125, 0); }
+}
+
         .btn-start { background: #0d6efd; color: white; font-size: 16px; }
         
         .shop-area { margin-top: 10px; width: 100%; display: flex; flex-direction: column; gap: 8px;}
@@ -325,6 +341,7 @@
                 <button class="btn-bet" id="btn-bet" onclick="increaseBet()">加注 (+5)</button>
                 <button class="btn-allin" id="btn-allin" onclick="allIn()">🔥 梭哈</button>
                 <button class="btn-start" id="btn-start" onclick="startGame()">确定 / 开始</button>
+		<button class="btn-restart" id="btn-restart" onclick="restartGame()" style="display: none;">🔄 破产了？点我重开！</button>
             </div>
             
             <div class="launch-area">
@@ -830,7 +847,7 @@
         tryResumeAudio(); soundEffects.click();
         if (beads < currentBet || beads <= 0) { setMessage("弹珠不足！请联系黄老板充值。"); checkGameOver(); return; }
         
-        roundsPlayed++; isBonusRound = (roundsPlayed % 10 === 0);
+        roundsPlayed++; isBonusRound = (roundsPlayed % 3 === 0);
         beads -= currentBet; wonThisRound = 0; gameState = 'SPINNING'; updateUI(); 
         setMessage(isBonusRound ? "🌟 黄金时刻！随便进洞都中奖！🌟" : "抽奖中...");
         
@@ -1054,14 +1071,62 @@
     function highlightMultiplier(m) { document.getElementById(`mult-lamp-${m}`)?.classList.add('active'); }
     function highlightHole(h, isBonus) { const el = document.getElementById(`hole-lamp-${h}`); if(el) { if(isBonus) el.classList.add('bonus-active'); else el.classList.add('target'); } }
     
+// --- 新增：重新开始游戏逻辑 ---
+    function restartGame() {
+        tryResumeAudio();
+        soundEffects.click();
+        
+        // 重置核心数据
+        beads = 200;       // 恢复弹珠
+        points = 0;        // 清零积分
+        currentBet = 5;    // 重置赌注
+        wonThisRound = 0;
+        gameState = 'IDLE';
+        roundsPlayed = 0;
+        
+        setMessage("游戏已重置！新的征程开始了！");
+        updateUI();
+    }
+
+    // --- 修改：更新UI逻辑 (替换原有的 updateUI 函数) ---
     function updateUI() {
-        document.getElementById('bead-display').innerText = beads; document.getElementById('bet-display').innerText = currentBet;
-        document.getElementById('won-display').innerText = wonThisRound; document.getElementById('points-display').innerText = points; document.getElementById('shop-points').innerText = points;
+        document.getElementById('bead-display').innerText = beads;
+        document.getElementById('bet-display').innerText = currentBet;
+        document.getElementById('won-display').innerText = wonThisRound;
+        document.getElementById('points-display').innerText = points;
+        document.getElementById('shop-points').innerText = points;
+
         const isIdle = gameState === 'IDLE';
-        document.getElementById('btn-start').disabled = !isIdle || beads <= 0 || currentBet <= 0;
-        document.getElementById('btn-bet').disabled = !isIdle || beads <= 0;
-        const allInBtn = document.getElementById('btn-allin'); if (allInBtn) allInBtn.disabled = !isIdle || beads <= 0;
-        document.getElementById('btn-launch').disabled = gameState !== 'READY_TO_LAUNCH';
+        const isGameOver = gameState === 'GAME_OVER';
+
+        // 获取按钮元素
+        const btnBet = document.getElementById('btn-bet');
+        const btnAllin = document.getElementById('btn-allin');
+        const btnStart = document.getElementById('btn-start');
+        const btnRestart = document.getElementById('btn-restart'); // 获取新按钮
+        const btnLaunch = document.getElementById('btn-launch');
+
+        // 逻辑：如果是 Game Over 状态，显示重开按钮，隐藏操作按钮
+        if (isGameOver) {
+            btnBet.style.display = 'none';
+            btnAllin.style.display = 'none';
+            btnStart.style.display = 'none';
+            btnRestart.style.display = 'block'; // 显示重开按钮
+        } else {
+            // 正常游戏状态
+            btnBet.style.display = 'block';
+            btnAllin.style.display = 'block';
+            btnStart.style.display = 'block';
+            btnRestart.style.display = 'none';  // 隐藏重开按钮
+
+            // 控制按钮可用性
+            btnStart.disabled = !isIdle || beads <= 0 || currentBet <= 0;
+            btnBet.disabled = !isIdle || beads <= 0;
+            btnAllin.disabled = !isIdle || beads <= 0;
+        }
+
+        // 发射按钮控制保持不变
+        btnLaunch.disabled = gameState !== 'READY_TO_LAUNCH';
     }
     function setMessage(msg) { document.getElementById('message').innerText = msg; }
     function openShop() { tryResumeAudio(); soundEffects.click(); document.getElementById('shop-modal').style.display = 'flex'; updateUI(); }
